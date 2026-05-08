@@ -66,3 +66,5 @@ coverage/
 # TYPESCRIPT
 # =========================
 *.tsbuildinfo
+
+supabase2.txt
