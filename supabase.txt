@@ -1,0 +1,3 @@
+Organization: navysync
+Project Name: NaviLink
+Database password: rXbX4K38qeMAVlxR
