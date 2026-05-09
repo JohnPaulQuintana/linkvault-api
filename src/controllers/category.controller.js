@@ -4,8 +4,10 @@ const categoryService = require("../services/category.service");
 exports.getCategories = async (req, res) => {
   try {
     const { userId } = req.query;
+    console.log("[getCategories] Query params:", req.query);
 
     if (!userId) {
+      console.warn("[getCategories] userId missing");
       return res.status(400).json({
         success: false,
         message: "User id is required",
@@ -14,6 +16,7 @@ exports.getCategories = async (req, res) => {
     }
 
     const data = await categoryService.getAll({ userId });
+    console.log("[getCategories] Fetched categories:", data.length);
 
     return res.status(200).json({
       success: true,
@@ -24,6 +27,7 @@ exports.getCategories = async (req, res) => {
       },
     });
   } catch (err) {
+    console.error("[getCategories] Error:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch categories",
@@ -37,8 +41,10 @@ exports.getCategories = async (req, res) => {
 exports.createCategory = async (req, res) => {
   try {
     const { userId, name, icon } = req.body;
+    console.log("[createCategory] Request body:", req.body);
 
     if (!userId || !name || !icon) {
+      console.warn("[createCategory] Missing required fields");
       return res.status(400).json({
         success: false,
         message: "Missing required fields",
@@ -46,11 +52,8 @@ exports.createCategory = async (req, res) => {
       });
     }
 
-    const data = await categoryService.create({
-      userId,
-      name,
-      icon,
-    });
+    const data = await categoryService.create({ userId, name, icon });
+    console.log("[createCategory] Created category:", data);
 
     return res.status(201).json({
       success: true,
@@ -58,6 +61,7 @@ exports.createCategory = async (req, res) => {
       data,
     });
   } catch (err) {
+    console.error("[createCategory] Error:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to create category",
@@ -72,8 +76,10 @@ exports.deleteCategory = async (req, res) => {
   try {
     const { id } = req.params;
     const { userId } = req.body;
+    console.log("[deleteCategory] Params:", req.params, "Body:", req.body);
 
     if (!id || !userId) {
+      console.warn("[deleteCategory] Missing category id or user id");
       return res.status(400).json({
         success: false,
         message: "Category id and user id are required",
@@ -81,12 +87,9 @@ exports.deleteCategory = async (req, res) => {
       });
     }
 
-    const deleted = await categoryService.delete({
-      id,
-      userId,
-    });
-
+    const deleted = await categoryService.delete({ id, userId });
     if (!deleted) {
+      console.warn("[deleteCategory] Category not found:", id);
       return res.status(404).json({
         success: false,
         message: "Category not found",
@@ -94,12 +97,14 @@ exports.deleteCategory = async (req, res) => {
       });
     }
 
+    console.log("[deleteCategory] Category deleted:", deleted);
     return res.status(200).json({
       success: true,
       message: "Category deleted successfully",
       data: deleted,
     });
   } catch (err) {
+    console.error("[deleteCategory] Error:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to delete category",
@@ -109,24 +114,23 @@ exports.deleteCategory = async (req, res) => {
   }
 };
 
+// EDIT
 exports.editCategory = async (req, res) => {
   try {
     const { id } = req.params;
     const { userId, name, icon } = req.body;
+    console.log("[editCategory] Params:", req.params, "Body:", req.body);
 
     if (!id || !userId) {
+      console.warn("[editCategory] Missing required fields");
       return res.status(400).json({
         success: false,
         message: "Missing required fields",
       });
     }
 
-    const updated = await categoryService.edit({
-      id,
-      userId,
-      name,
-      icon,
-    });
+    const updated = await categoryService.edit({ id, userId, name, icon });
+    console.log("[editCategory] Category updated:", updated);
 
     return res.status(200).json({
       success: true,
@@ -134,6 +138,7 @@ exports.editCategory = async (req, res) => {
       data: updated,
     });
   } catch (err) {
+    console.error("[editCategory] Error:", err);
     return res.status(500).json({
       success: false,
       message: err.message,

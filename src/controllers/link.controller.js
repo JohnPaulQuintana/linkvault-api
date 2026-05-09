@@ -8,8 +8,10 @@ const linkService = require("../services/link.service");
 exports.generatePreview = async (req, res) => {
   try {
     const { url } = req.query;
+    console.log("[generatePreview] Received URL:", url);
 
     if (!url) {
+      console.warn("[generatePreview] URL missing");
       return res.status(400).json({
         success: false,
         message: "URL is required",
@@ -17,12 +19,14 @@ exports.generatePreview = async (req, res) => {
     }
 
     const data = await linkService.generateContentLink(url);
+    console.log("[generatePreview] Preview data:", data);
 
     return res.json({
       success: true,
       data,
     });
   } catch (err) {
+    console.error("[generatePreview] Error:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to generate preview",
@@ -39,8 +43,10 @@ exports.generatePreview = async (req, res) => {
 exports.createLink = async (req, res) => {
   try {
     const { url, category_id, user_id } = req.body;
+    console.log("[createLink] Request body:", req.body);
 
     if (!url) {
+      console.warn("[createLink] URL missing");
       return res.status(400).json({
         success: false,
         message: "URL is required",
@@ -48,6 +54,7 @@ exports.createLink = async (req, res) => {
     }
 
     if (!category_id) {
+      console.warn("[createLink] category_id missing");
       return res.status(400).json({
         success: false,
         message: "category_id is required",
@@ -55,6 +62,7 @@ exports.createLink = async (req, res) => {
     }
 
     if (!user_id) {
+      console.warn("[createLink] user_id missing");
       return res.status(400).json({
         success: false,
         message: "user_id is required",
@@ -66,6 +74,7 @@ exports.createLink = async (req, res) => {
       category_id,
       user_id,
     });
+    console.log("[createLink] Link created:", result);
 
     return res.status(201).json({
       success: true,
@@ -73,6 +82,7 @@ exports.createLink = async (req, res) => {
       data: result,
     });
   } catch (err) {
+    console.error("[createLink] Error:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to create link",
@@ -89,8 +99,10 @@ exports.createLink = async (req, res) => {
 exports.getLinks = async (req, res) => {
   try {
     const { userId, categoryId } = req.query;
+    console.log("[getLinks] Query params:", req.query);
 
     if (!userId) {
+      console.warn("[getLinks] userId missing");
       return res.status(400).json({
         success: false,
         message: "userId is required",
@@ -101,12 +113,14 @@ exports.getLinks = async (req, res) => {
       userId,
       categoryId,
     });
+    console.log("[getLinks] Fetched links count:", data.length);
 
     return res.json({
       success: true,
       data,
     });
   } catch (err) {
+    console.error("[getLinks] Error:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch links",
@@ -124,8 +138,10 @@ exports.deleteLink = async (req, res) => {
   try {
     const { id } = req.params;
     const { userId } = req.body;
+    console.log("[deleteLink] Params:", req.params, "Body:", req.body);
 
     if (!id) {
+      console.warn("[deleteLink] Link id missing");
       return res.status(400).json({
         success: false,
         message: "Link id is required",
@@ -136,6 +152,7 @@ exports.deleteLink = async (req, res) => {
       id,
       userId,
     });
+    console.log("[deleteLink] Link deleted:", result);
 
     return res.json({
       success: true,
@@ -143,6 +160,7 @@ exports.deleteLink = async (req, res) => {
       data: result,
     });
   } catch (err) {
+    console.error("[deleteLink] Error:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to delete link",
