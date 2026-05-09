@@ -2,6 +2,12 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const { normalizeUrl } = require("../utils/normalizeUrl");
 
+/**
+ * -------------------------
+ * HELPERS
+ * -------------------------
+ */
+
 const cleanText = (text) => {
   if (!text) return null;
   return text
@@ -29,103 +35,219 @@ const resolveUrl = (base, src) => {
   }
 };
 
-// 🔥 THIS IS PURE SCRAPER (NO DB)
-exports.generateContentLink = async (inputUrl) => {
+/**
+ * -------------------------
+ * WEBSITE SCRAPER
+ * -------------------------
+ */
+
+exports.generateWebsiteContent = async (inputUrl) => {
   const url = normalizeUrl(inputUrl);
 
   const response = await axios.get(url, {
     headers: {
       "User-Agent": "Mozilla/5.0",
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      Accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     },
     timeout: 10000,
   });
 
   const $ = cheerio.load(response.data);
 
-  // -------------------
-  // TITLE
-  // -------------------
   let title =
     $('meta[property="og:title"]').attr("content") ||
     $('meta[name="twitter:title"]').attr("content") ||
     $("title").text();
 
-  title = cleanText(title) || "Untitled";
-  title = title.replace(/\s*\|\s*MDN.*$/i, "");
-  title = title.replace(/\s*\-\s*MDN.*$/i, "");
-  title = title.slice(0, 90);
-
-  // -------------------
-  // DESCRIPTION
-  // -------------------
   let description =
     $('meta[property="og:description"]').attr("content") ||
-    $('meta[name="twitter:description"]').attr("content") ||
     $('meta[name="description"]').attr("content");
 
-  description = cleanText(description);
-
-  if (!description) {
-    description = cleanText($("p").first().text());
-  }
-
-  if (description && description.length > 160) {
-    description = description.slice(0, 157) + "...";
-  }
-
-  // -------------------
-  // IMAGE
-  // -------------------
   let image =
-    $('meta[property="og:image"]').attr("content") ||
-    $('meta[name="twitter:image"]').attr("content") ||
-    $("link[rel='image_src']").attr("href");
+    $('meta[property="og:image"]').attr("content");
 
-  if (!image) {
-    image = $("img")
-      .first()
-      .attr("src");
-  }
-
-  image = resolveUrl(url, image);
-
-  // fallback avatar
-  if (!image) {
-    const domain = getDomain(url);
-    image = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-      domain || "link"
-    )}&background=0D8ABC&color=fff&size=512`;
-  }
-
-  // -------------------
-  // FAVICON
-  // -------------------
   let favicon =
-    $('link[rel="icon"]').attr("href") ||
-    $('link[rel="shortcut icon"]').attr("href");
+    $('link[rel="icon"]').attr("href");
 
-  favicon = resolveUrl(url, favicon);
+  return {
+    url,
+    domain: getDomain(url),
+    title: cleanText(title) || "Untitled",
+    description: cleanText(description),
+    image: resolveUrl(url, image),
+    favicon: resolveUrl(url, favicon),
+    type: "website",
+    metadata: {},
+  };
+};
 
-  if (!favicon) {
-    try {
-      favicon = new URL("/favicon.ico", url).href;
-    } catch {
-      favicon = null;
-    }
-  }
+/**
+ * -------------------------
+ * GOOGLE (SHEET / DOC / DRIVE)
+ * -------------------------
+ */
 
+const generateGoogleMeta = (url) => {
   const domain = getDomain(url);
 
-  // -------------------
-  // FINAL CLEAN OUTPUT
-  // -------------------
   return {
     url,
     domain,
-    title,
-    description,
-    image,
-    favicon,
+    title: "Google Workspace File",
+    description: "Google document or sheet",
+    image: "https://ui-avatars.com/api/?name=Google+File&background=4285F4&color=fff&size=512",
+    favicon:
+      "https://ssl.gstatic.com/docs/doclist/images/infinite_arrow_favicon_5.ico",
+    type: "google",
+    metadata: {
+      provider: "google",
+    },
   };
+};
+
+/**
+ * -------------------------
+ * YOUTUBE
+ * -------------------------
+ */
+
+const generateYoutubeMeta = (url) => {
+  const domain = getDomain(url);
+
+  let videoId = null;
+
+  try {
+    const u = new URL(url);
+
+    if (u.hostname.includes("youtu.be")) {
+      videoId = u.pathname.slice(1);
+    }
+
+    if (u.searchParams.get("v")) {
+      videoId = u.searchParams.get("v");
+    }
+  } catch {}
+
+  const thumbnail = videoId
+    ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+    : null;
+
+  return {
+    url,
+    domain,
+    title: "YouTube Video",
+    description: null,
+
+    image: thumbnail,
+
+    favicon: "https://www.youtube.com/s/desktop/favicon.ico",
+
+    type: "youtube",
+    metadata: {
+      provider: "youtube",
+      videoId,
+    },
+  };
+};
+
+/**
+ * -------------------------
+ * GITHUB
+ * -------------------------
+ */
+
+const generateGithubMeta = (url) => {
+  const domain = getDomain(url);
+
+  let repoPath = null;
+
+  try {
+    const u = new URL(url);
+    repoPath = u.pathname.replace("/", "");
+  } catch {}
+
+  return {
+    url,
+    domain,
+    title: "GitHub Repository",
+    description: repoPath,
+
+    image:
+      "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+
+    favicon: "https://github.githubassets.com/favicons/favicon.png",
+
+    type: "github",
+    metadata: {
+      provider: "github",
+      repo: repoPath,
+    },
+  };
+};
+
+/**
+ * -------------------------
+ * NOTION
+ * -------------------------
+ */
+
+const generateNotionMeta = (url) => {
+  const domain = getDomain(url);
+
+  return {
+    url,
+    domain,
+    title: "Notion Page",
+    description: "Notion workspace page",
+
+    image:
+      "https://upload.wikimedia.org/wikipedia/commons/4/45/Notion_app_logo.png",
+
+    favicon: "https://www.notion.so/images/favicon.ico",
+
+    type: "notion",
+    metadata: {
+      provider: "notion",
+    },
+  };
+};
+
+/**
+ * -------------------------
+ * TYPE ROUTER
+ * -------------------------
+ */
+
+exports.generateTypedContent = async (url, type) => {
+  switch (type) {
+    case "website":
+      return exports.generateWebsiteContent(url);
+
+    case "youtube":
+      return generateYoutubeMeta(url);
+
+    case "google_sheet":
+    case "google_doc":
+    case "google_drive":
+      return generateGoogleMeta(url);
+
+    case "github":
+      return generateGithubMeta(url);
+
+    case "notion":
+      return generateNotionMeta(url);
+
+    default:
+      return {
+        url,
+        domain: getDomain(url),
+        title: "Unsupported link",
+        description: null,
+        image: null,
+        favicon: null,
+        type: "unknown",
+        metadata: {},
+      };
+  }
 };

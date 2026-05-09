@@ -3,9 +3,6 @@ const router = express.Router();
 
 const linkController = require("../controllers/link.controller");
 
-// generate preview (scrape metadata)
-router.get("/preview", linkController.generatePreview);
-
 // create link (save to DB)
 router.post("/create", linkController.createLink);
 

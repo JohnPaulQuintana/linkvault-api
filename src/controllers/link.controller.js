@@ -1,39 +1,8 @@
+const asyncHandler = require("../utils/asyncHandler");
+const AppError = require("../utils/AppError");
+
 const linkService = require("../services/link.service");
-
-/**
- * -------------------------
- * PREVIEW LINK (SCRAPE)
- * -------------------------
- */
-exports.generatePreview = async (req, res) => {
-  try {
-    const { url } = req.query;
-    console.log("[generatePreview] Received URL:", url);
-
-    if (!url) {
-      console.warn("[generatePreview] URL missing");
-      return res.status(400).json({
-        success: false,
-        message: "URL is required",
-      });
-    }
-
-    const data = await linkService.generateContentLink(url);
-    console.log("[generatePreview] Preview data:", data);
-
-    return res.json({
-      success: true,
-      data,
-    });
-  } catch (err) {
-    console.error("[generatePreview] Error:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to generate preview",
-      error: err.message,
-    });
-  }
-};
+const { detectLinkType } = require("../utils/detectLinkType");
 
 /**
  * -------------------------
@@ -42,51 +11,59 @@ exports.generatePreview = async (req, res) => {
  */
 exports.createLink = async (req, res) => {
   try {
-    const { url, category_id, user_id } = req.body;
+    const { url, category_id, user_id, title, description } = req.body;
+
     console.log("[createLink] Request body:", req.body);
 
-    if (!url) {
-      console.warn("[createLink] URL missing");
-      return res.status(400).json({
-        success: false,
-        message: "URL is required",
-      });
-    }
+    // VALIDATION
+    if (!url)
+      throw new AppError("URL is required", 400, "VALIDATION_ERROR");
 
-    if (!category_id) {
-      console.warn("[createLink] category_id missing");
-      return res.status(400).json({
-        success: false,
-        message: "category_id is required",
-      });
-    }
+    if (!category_id)
+      throw new AppError("category_id is required", 400, "VALIDATION_ERROR");
 
-    if (!user_id) {
-      console.warn("[createLink] user_id missing");
-      return res.status(400).json({
-        success: false,
-        message: "user_id is required",
-      });
-    }
+    if (!user_id)
+      throw new AppError("user_id is required", 400, "VALIDATION_ERROR");
 
+    // DETECT TYPE
+    const link_type = detectLinkType(url);
+
+    console.log(`[createLink] Detected link type: ${link_type}`);
+
+    // CREATE LINK
     const result = await linkService.createLink({
       url,
       category_id,
       user_id,
+      link_type,
+      title,
+      description,
     });
-    console.log("[createLink] Link created:", result);
 
     return res.status(201).json({
       success: true,
       message: "Link created successfully",
       data: result,
     });
+
   } catch (err) {
     console.error("[createLink] Error:", err);
+
+    // 🟢 IMPORTANT: handle AppError properly
+    if (err.isOperational) {
+      return res.status(err.statusCode).json({
+        success: false,
+        message: err.message,
+        code: err.code,
+        meta: err.meta || null,
+      });
+    }
+
+    // 🟡 fallback for unknown errors
     return res.status(500).json({
       success: false,
-      message: "Failed to create link",
-      error: err.message,
+      message: "Internal Server Error",
+      code: "SERVER_ERROR",
     });
   }
 };

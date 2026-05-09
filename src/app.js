@@ -4,6 +4,7 @@ const cors = require("cors");
 
 const linkRoutes = require("./routes/link.routes");
 const categoryRoutes = require("./routes/category.routes");
+const errorHandler = require("./middlewares/errorHandler");
 
 const app = express();
 
@@ -14,5 +15,7 @@ app.use(express.json());
 
 app.use("/api/categories", categoryRoutes)
 app.use("/api/links", linkRoutes);
+
+app.use(errorHandler);
 
 module.exports = app;

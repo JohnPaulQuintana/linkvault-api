@@ -1,31 +1,59 @@
 const scraper = require("./scraper.service");
 const { supabase } = require("../config/supabase");
+const AppError = require("../utils/AppError");
 
-/**
- * -------------------------
- * CREATE LINK
- * -------------------------
- */
-exports.createLink = async ({ url, category_id, user_id }) => {
-  // 1. SCRAPE META DATA
-  const preview = await scraper.generateContentLink(url);
+exports.createLink = async ({
+  url,
+  category_id,
+  user_id,
+  link_type,
+  title,
+  description,
+}) => {
+  // 1. DUPLICATE CHECK (IMPORTANT)
+  const { data: existing } = await supabase
+    .from("links")
+    .select("id")
+    .eq("user_id", user_id)
+    .eq("url", url)
+    .maybeSingle();
 
-  // 2. SAVE TO DB
+  if (existing) {
+    throw new AppError("Link already exists", 409, "DUPLICATE_LINK");
+  }
+
+  // 2. SCRAPE / GENERATE PREVIEW
+  let preview = null;
+
+  if (link_type === "website") {
+    preview = await scraper.generateWebsiteContent(url);
+  } else {
+    preview = await scraper.generateTypedContent(url, link_type);
+  }
+
+  // 3. SAFE MERGE (user input wins)
+  const payload = {
+    url,
+    category_id,
+    user_id,
+
+    title: title || preview?.title || "Untitled",
+    description: description || preview?.description || null,
+    image: preview?.image || null,
+    favicon: preview?.favicon || null,
+    domain: preview?.domain || null,
+  };
+
+  // 4. INSERT
   const { data, error } = await supabase
     .from("links")
-    .insert([
-      {
-        ...preview,
-        url, // always store original url
-        category_id,
-        user_id,
-        created_at: new Date().toISOString(),
-      },
-    ])
+    .insert([payload])
     .select()
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    throw new AppError(error.message, 500, "DB_ERROR");
+  }
 
   return data;
 };
@@ -36,22 +64,21 @@ exports.createLink = async ({ url, category_id, user_id }) => {
  * -------------------------
  */
 exports.getLinks = async ({ userId, categoryId }) => {
-  let query = supabase
+  const query = supabase
     .from("links")
     .select("*")
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
 
-  // optional filter by category
   if (categoryId) {
-    query = query.eq("category_id", categoryId);
+    query.eq("category_id", categoryId);
   }
-
-  // latest → oldest
-  query = query.order("created_at", { ascending: false });
 
   const { data, error } = await query;
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    throw new AppError(error.message, 500, "DB_ERROR");
+  }
 
   return data;
 };
@@ -70,7 +97,9 @@ exports.deleteLink = async ({ id, userId }) => {
     .select()
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    throw new AppError(error.message, 500, "DB_ERROR");
+  }
 
   return data;
 };
