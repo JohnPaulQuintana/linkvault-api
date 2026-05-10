@@ -167,8 +167,7 @@ const generateGoogleMeta = (url) => {
     domain,
     title: "Google Workspace File",
     description: "Google document or sheet",
-    image:
-      "https://ui-avatars.com/api/?name=Google+File&background=4285F4&color=fff&size=512",
+    image: null,
     favicon:
       "https://ssl.gstatic.com/docs/doclist/images/infinite_arrow_favicon_5.ico",
     type: "google",
