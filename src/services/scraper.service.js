@@ -2,6 +2,10 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const { normalizeUrl } = require("../utils/normalizeUrl");
 
+const axios = require("axios");
+const cheerio = require("cheerio");
+const cloudscraper = require("cloudscraper");
+
 /**
  * -------------------------
  * HELPERS
@@ -10,6 +14,7 @@ const { normalizeUrl } = require("../utils/normalizeUrl");
 
 const cleanText = (text) => {
   if (!text) return null;
+
   return text
     .replace(/\s+/g, " ")
     .replace(/[\n\r\t]/g, " ")
@@ -27,12 +32,35 @@ const getDomain = (url) => {
 const resolveUrl = (base, src) => {
   try {
     if (!src) return null;
+
     if (src.startsWith("http")) return src;
+
     if (src.startsWith("//")) return "https:" + src;
+
     return new URL(src, base).href;
   } catch {
     return null;
   }
+};
+
+const normalizeUrl = (url) => {
+  if (!/^https?:\/\//i.test(url)) {
+    return `https://${url}`;
+  }
+
+  return url;
+};
+
+const isCloudflareBlocked = (html = "") => {
+  const text = html.toLowerCase();
+
+  return (
+    text.includes("cf-browser-verification") ||
+    text.includes("checking your browser") ||
+    text.includes("cloudflare") ||
+    text.includes("attention required") ||
+    text.includes("access denied")
+  );
 };
 
 /**
@@ -44,16 +72,66 @@ const resolveUrl = (base, src) => {
 exports.generateWebsiteContent = async (inputUrl) => {
   const url = normalizeUrl(inputUrl);
 
-  const response = await axios.get(url, {
-    headers: {
-      "User-Agent": "Mozilla/5.0",
-      Accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    },
-    timeout: 10000,
-  });
+  let html = null;
 
-  const $ = cheerio.load(response.data);
+  /**
+   * PRIMARY: AXIOS
+   */
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+      timeout: 10000,
+    });
+
+    html = response.data;
+
+    // detect challenge page
+    if (isCloudflareBlocked(html)) {
+      throw new Error("Cloudflare protection detected");
+    }
+  } catch (error) {
+    console.log("Axios failed, trying cloudscraper...");
+
+    /**
+     * FALLBACK: CLOUDSCRAPER
+     */
+    try {
+      html = await cloudscraper.get({
+        uri: url,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36",
+        },
+      });
+    } catch (cloudError) {
+      console.log("Cloudscraper failed:", cloudError.message);
+
+      return {
+        url,
+        domain: getDomain(url),
+        title: getDomain(url),
+        description: "Unable to fetch website metadata.",
+        image: null,
+        favicon: `https://www.google.com/s2/favicons?domain=${getDomain(
+          url,
+        )}&sz=128`,
+        type: "website",
+        metadata: {
+          blocked: true,
+        },
+      };
+    }
+  }
+
+  /**
+   * PARSE HTML
+   */
+  const $ = cheerio.load(html);
 
   let title =
     $('meta[property="og:title"]').attr("content") ||
@@ -64,11 +142,11 @@ exports.generateWebsiteContent = async (inputUrl) => {
     $('meta[property="og:description"]').attr("content") ||
     $('meta[name="description"]').attr("content");
 
-  let image =
-    $('meta[property="og:image"]').attr("content");
+  let image = $('meta[property="og:image"]').attr("content");
 
   let favicon =
-    $('link[rel="icon"]').attr("href");
+    $('link[rel="icon"]').attr("href") ||
+    $('link[rel="shortcut icon"]').attr("href");
 
   return {
     url,
@@ -96,7 +174,8 @@ const generateGoogleMeta = (url) => {
     domain,
     title: "Google Workspace File",
     description: "Google document or sheet",
-    image: "https://ui-avatars.com/api/?name=Google+File&background=4285F4&color=fff&size=512",
+    image:
+      "https://ui-avatars.com/api/?name=Google+File&background=4285F4&color=fff&size=512",
     favicon:
       "https://ssl.gstatic.com/docs/doclist/images/infinite_arrow_favicon_5.ico",
     type: "google",
