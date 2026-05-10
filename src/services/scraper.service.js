@@ -1,4 +1,3 @@
-
 const { normalizeUrl } = require("../utils/normalizeUrl");
 
 const axios = require("axios");
@@ -41,8 +40,6 @@ const resolveUrl = (base, src) => {
     return null;
   }
 };
-
-
 
 const isCloudflareBlocked = (html = "") => {
   const text = html.toLowerCase();
@@ -133,7 +130,25 @@ exports.generateWebsiteContent = async (inputUrl) => {
 
   let description =
     $('meta[property="og:description"]').attr("content") ||
-    $('meta[name="description"]').attr("content");
+    $('meta[name="twitter:description"]').attr("content") ||
+    $('meta[name="description"]').attr("content") ||
+    $('meta[itemprop="description"]').attr("content");
+
+  /**
+   * FALLBACKS
+   */
+  if (!description || !description.trim()) {
+    description =
+      $("article p").first().text() ||
+      $("main p").first().text() ||
+      $("p")
+        .filter((i, el) => $(el).text().trim().length > 40)
+        .first()
+        .text() ||
+      $("h1").first().text();
+  }
+
+  description = cleanText(description);
 
   let image = $('meta[property="og:image"]').attr("content");
 
