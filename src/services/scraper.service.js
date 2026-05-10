@@ -1,5 +1,4 @@
-const axios = require("axios");
-const cheerio = require("cheerio");
+
 const { normalizeUrl } = require("../utils/normalizeUrl");
 
 const axios = require("axios");
