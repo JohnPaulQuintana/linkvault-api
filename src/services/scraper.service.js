@@ -42,13 +42,7 @@ const resolveUrl = (base, src) => {
   }
 };
 
-const normalizeUrl = (url) => {
-  if (!/^https?:\/\//i.test(url)) {
-    return `https://${url}`;
-  }
 
-  return url;
-};
 
 const isCloudflareBlocked = (html = "") => {
   const text = html.toLowerCase();
