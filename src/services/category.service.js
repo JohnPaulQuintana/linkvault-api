@@ -2,6 +2,18 @@ const { supabase } = require("../config/supabase");
 const AppError = require("../utils/AppError");
 
 // =========================
+// COUNT (SAFE)
+// =========================
+exports.countByUser = async (userId) => {
+  const { count, error } = await supabase
+    .from("categories")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId);
+
+  return { count, error };
+};
+
+// =========================
 // GET ALL CATEGORIES (SAFE)
 // =========================
 exports.getAll = async ({ userId }) => {

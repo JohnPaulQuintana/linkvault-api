@@ -1,4 +1,5 @@
 const categoryService = require("../services/category.service");
+const subscriptionService = require("../services/subscription.service");
 const AppError = require("../utils/AppError");
 
 // GET ALL
@@ -61,6 +62,39 @@ exports.createCategory = async (req, res) => {
       );
     }
 
+    // =========================
+    // 1. GET PLAN
+    // =========================
+    const plan = await subscriptionService.getMyPlan(userId);
+
+     // =========================
+    // 2. COUNT EXISTING CATEGORIES
+    // =========================
+    const { count, error } = await categoryService.countByUser(userId);
+
+    if (error) {
+      throw new Error("Failed to count categories");
+    }
+
+
+    // =========================
+    // 3. ENFORCE LIMIT
+    // =========================
+    if (count >= plan.max_categories) {
+      throw new AppError(
+        `Free plan limit reached (${plan.max_categories} categories)`,
+        403,
+        "PLAN_LIMIT_REACHED",
+        {
+          limit: plan.max_categories,
+          current: count,
+        }
+      );
+    }
+
+    // =========================
+    // 4. CREATE CATEGORY
+    // =========================
     const data = await categoryService.create({
       userId,
       name,
