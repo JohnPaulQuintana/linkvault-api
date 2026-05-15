@@ -66,4 +66,56 @@ const logout = async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 };
-module.exports = { register, verifyOtp, resendOtp, login, me, refresh, logout };
+
+// ======================
+// FORGOT PASSWORD
+// ======================
+
+const forgotPassword = async (req, res) => {
+  try {
+    const result = await authService.forgotPassword(req.body);
+
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({
+      error: err.message,
+    });
+  }
+};
+
+const verifyResetOtp = async (req, res) => {
+  try {
+    const result = await authService.verifyResetOtp(req.body);
+
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({
+      error: err.message,
+    });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const result = await authService.resetPassword(req.body);
+
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({
+      error: err.message,
+    });
+  }
+};
+
+module.exports = {
+  register,
+  verifyOtp,
+  resendOtp,
+  login,
+  me,
+  refresh,
+  logout,
+  forgotPassword,
+  verifyResetOtp,
+  resetPassword,
+};

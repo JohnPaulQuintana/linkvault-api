@@ -1,6 +1,6 @@
 const { supabase } = require("../config/supabase");
 const bcrypt = require("bcrypt");
-const { sendOtp } = require("./otp.service");
+const { sendOtp, sendForgotPasswordOtp } = require("./otp.service");
 const { generateAccessToken, generateRefreshToken } = require("../utils/jwt");
 const { compare } = require("../utils/hash");
 const jwt = require("jsonwebtoken");
@@ -8,7 +8,7 @@ const { AuthError, AUTH_ERRORS } = require("../utils/authErrors");
 const { insertSubscription } = require("./subscription.service");
 
 const register = async ({ email, password, fullname }) => {
-  console.log(fullname)
+  console.log(fullname);
   const existing = await supabase
     .from("users")
     .select("*")
@@ -31,7 +31,7 @@ const register = async ({ email, password, fullname }) => {
     .insert({
       email,
       password: hashedPassword,
-      full_name: fullname
+      full_name: fullname,
     })
     .select()
     .single();
@@ -40,7 +40,7 @@ const register = async ({ email, password, fullname }) => {
   const { data: freePlan, error: planError } = await supabase
     .from("subscription_plans")
     .select("*")
-    .eq("id", "starter")
+    .eq("slug", "starter")
     .single();
 
   if (planError || !freePlan) {
@@ -305,6 +305,168 @@ const logout = async ({ refreshToken }) => {
   return { message: "Logged out successfully" };
 };
 
+const forgotPassword = async ({ email }) => {
+  if (!email) {
+    throw new AuthError("INVALID_REQUEST", "Email is required", 400);
+  }
+
+  // check user
+  const { data: user } = await supabase
+    .from("users")
+    .select("*")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (!user) {
+    throw new AuthError(AUTH_ERRORS.USER_NOT_FOUND, "Account not found", 404);
+  }
+
+  // cooldown check
+  const { data: lastOtp } = await supabase
+    .from("password_resets")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (lastOtp) {
+    const diff = Date.now() - new Date(lastOtp.created_at).getTime();
+
+    if (diff < 60 * 1000) {
+      throw new Error("Please wait 60 seconds before requesting another code");
+    }
+  }
+
+  // cleanup old reset requests
+  await supabase.from("password_resets").delete().eq("user_id", user.id);
+
+  // generate otp
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // hash otp
+  const codeHash = await bcrypt.hash(otp, 10);
+
+  // expiry
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+  // save otp
+  await supabase.from("password_resets").insert({
+    user_id: user.id,
+    email: user.email,
+    otp: codeHash,
+    expires_at: expiresAt,
+    created_at: new Date(),
+  });
+
+  // ONLY SEND EMAIL
+  await sendForgotPasswordOtp({
+    email: user.email,
+    otp,
+  });
+
+  return {
+    message: "Password reset code sent",
+  };
+};
+
+const verifyResetOtp = async ({ email, otp }) => {
+  const { data: user } = await supabase
+    .from("users")
+    .select("*")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (!user) {
+    throw new AuthError(AUTH_ERRORS.USER_NOT_FOUND, "User not found", 404);
+  }
+
+  const { data: record } = await supabase
+    .from("password_resets")
+    .select("*")
+    .eq("user_id", user.id)
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!record) {
+    throw new AuthError(AUTH_ERRORS.OTP_EXPIRED, "OTP expired", 400);
+  }
+
+  const valid = await bcrypt.compare(otp, record.otp);
+
+  if (!valid) {
+    throw new AuthError(AUTH_ERRORS.OTP_INVALID, "Invalid OTP", 400);
+  }
+
+  return {
+    message: "OTP verified",
+  };
+};
+
+const resetPassword = async ({ email, otp, newPassword }) => {
+  console.log(email, otp, newPassword)
+  if (!email || !otp || !newPassword) {
+    throw new AuthError("INVALID_REQUEST", "All fields are required", 400);
+  }
+
+  // find user
+  const { data: user } = await supabase
+    .from("users")
+    .select("*")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (!user) {
+    throw new AuthError(AUTH_ERRORS.USER_NOT_FOUND, "User not found", 404);
+  }
+
+  // get latest valid reset otp
+  const { data: record } = await supabase
+    .from("password_resets")
+    .select("*")
+    .eq("user_id", user.id)
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", {
+      ascending: false,
+    })
+    .limit(1)
+    .maybeSingle();
+
+  if (!record) {
+    throw new AuthError(AUTH_ERRORS.OTP_EXPIRED, "OTP expired", 400);
+  }
+
+  // compare otp
+  const valid = await bcrypt.compare(otp, record.otp);
+
+  if (!valid) {
+    throw new AuthError(AUTH_ERRORS.OTP_INVALID, "Invalid OTP", 400);
+  }
+
+  // hash new password
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  // update password
+  await supabase
+    .from("users")
+    .update({
+      password: hashedPassword,
+    })
+    .eq("id", user.id);
+
+  // cleanup reset otp
+  await supabase.from("password_resets").delete().eq("user_id", user.id);
+
+  // logout all sessions
+  await supabase.from("sessions").delete().eq("user_id", user.id);
+
+  return {
+    message: "Password reset successful",
+  };
+};
+
 module.exports = {
   register,
   verifyOtp,
@@ -313,4 +475,8 @@ module.exports = {
   me,
   refreshToken,
   logout,
+
+  forgotPassword,
+  verifyResetOtp,
+  resetPassword,
 };

@@ -5,6 +5,15 @@ const { hash } = require("../utils/hash");
 
 const RESEND_COOLDOWN = 60 * 1000; // 60 seconds
 
+// ✅ GLOBAL TRANSPORTER
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
 const sendOtp = async (email) => {
   // 1. Check last OTP (cooldown protection)
   const { data: lastOtp } = await supabase
@@ -43,15 +52,6 @@ const sendOtp = async (email) => {
   if (error) {
     throw new Error("Failed to save OTP");
   }
-
-  // 5. Send email
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
 
   await transporter.sendMail({
     from: `"NaviLink" <${process.env.EMAIL}>`,
@@ -206,4 +206,159 @@ const sendOtp = async (email) => {
   return true;
 };
 
-module.exports = { sendOtp };
+const sendForgotPasswordOtp = async ({ email, otp }) => {
+  await transporter.sendMail({
+    from: `"NaviLink" <${process.env.EMAIL}>`,
+    to: email,
+    subject: "Reset your NaviLink password",
+    html: `
+  <div style="
+    background:#f4f7fb;
+    padding:40px 20px;
+    font-family:Arial, sans-serif;
+  ">
+
+    <div style="
+      max-width:520px;
+      margin:auto;
+      background:#ffffff;
+      border-radius:20px;
+      overflow:hidden;
+      box-shadow:0 12px 35px rgba(0,0,0,0.08);
+    ">
+
+      <!-- HEADER -->
+      <div style="
+        background:linear-gradient(135deg,#ef4444,#f97316);
+        padding:32px 24px;
+        text-align:center;
+      ">
+        <h1 style="
+          color:#ffffff;
+          margin:0;
+          font-size:26px;
+          letter-spacing:1px;
+        ">
+          NaviLink
+        </h1>
+
+        <p style="
+          color:rgba(255,255,255,0.85);
+          margin-top:6px;
+          font-size:13px;
+        ">
+          Secure password recovery
+        </p>
+      </div>
+
+      <!-- BODY -->
+      <div style="padding:36px 28px;">
+
+        <h2 style="
+          margin:0 0 10px 0;
+          color:#0f172a;
+          font-size:22px;
+        ">
+          Reset your password
+        </h2>
+
+        <p style="
+          color:#475569;
+          font-size:14px;
+          line-height:1.6;
+          margin-bottom:26px;
+        ">
+          We received a request to reset your NaviLink password.
+          Use the verification code below to continue securely.
+        </p>
+
+        <!-- OTP GRID -->
+        <div style="
+          text-align:center;
+          margin:30px 0;
+        ">
+
+          <table role="presentation" align="center" cellspacing="0" cellpadding="0" style="margin:auto;">
+            <tr>
+
+              ${otp
+                .split("")
+                .map(
+                  (digit) => `
+                <td style="
+                  width:48px;
+                  height:56px;
+                  border:2px solid #e2e8f0;
+                  border-radius:12px;
+                  background:#f8fafc;
+                  text-align:center;
+                  vertical-align:middle;
+                  font-size:22px;
+                  font-weight:700;
+                  color:#ef4444;
+                  font-family:Arial, sans-serif;
+                ">
+                  ${digit}
+                </td>
+                <td style="width:10px;"></td>
+              `,
+                )
+                .join("")}
+
+            </tr>
+          </table>
+
+        </div>
+
+        <!-- INFO BOX -->
+        <div style="
+          background:#fff7ed;
+          border-radius:14px;
+          padding:16px 18px;
+          border:1px solid #fdba74;
+        ">
+          <p style="
+            margin:0;
+            color:#9a3412;
+            font-size:13px;
+            line-height:1.7;
+          ">
+            This code expires in <b>5 minutes</b><br/>
+            Never share this code with anyone<br/>
+            If you did not request a password reset,
+            you can safely ignore this email
+          </p>
+        </div>
+
+        <!-- HELP TEXT -->
+        <p style="
+          margin-top:24px;
+          font-size:12px;
+          color:#94a3b8;
+          text-align:center;
+        ">
+          Need help? Contact NaviLink support anytime.
+        </p>
+
+      </div>
+
+      <!-- FOOTER -->
+      <div style="
+        text-align:center;
+        padding:18px;
+        font-size:12px;
+        color:#94a3b8;
+        border-top:1px solid #eef2f7;
+      ">
+        © ${new Date().getFullYear()} NaviLink. All rights reserved.
+      </div>
+
+    </div>
+  </div>
+  `,
+  });
+
+  return true;
+};
+
+module.exports = { sendOtp, sendForgotPasswordOtp };
