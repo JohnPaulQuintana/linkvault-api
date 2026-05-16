@@ -215,7 +215,7 @@ const login = async ({ email, password }) => {
 const me = async (userId) => {
   const { data, error } = await supabase
     .from("users")
-    .select("id, email, full_name, is_verified, created_at")
+    .select("id, email, full_name, onboarding_status ,is_verified, created_at")
     .eq("id", userId)
     .single();
 
@@ -230,15 +230,18 @@ const me = async (userId) => {
   return data;
 };
 
-const refreshToken = async ({ refreshToken }) => {
-  if (!refreshToken) {
+const refreshToken = async ({ refreshToken: token }) => {
+  if (!token) {
     throw new AuthError("INVALID_REQUEST", "Refresh token required", 400);
   }
 
-  // 1. Verify token signature
+  // =========================
+  // 1. VERIFY JWT SIGNATURE
+  // =========================
   let decoded;
+
   try {
-    decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
   } catch (err) {
     throw new AuthError(
       AUTH_ERRORS.REFRESH_INVALID,
@@ -249,15 +252,17 @@ const refreshToken = async ({ refreshToken }) => {
 
   const userId = decoded.userId;
 
-  // 2. Find session
-  const { data: session } = await supabase
+  // =========================
+  // 2. FIND SESSION
+  // =========================
+  const { data: session, error } = await supabase
     .from("sessions")
     .select("*")
-    .eq("refresh_token", refreshToken)
+    .eq("refresh_token", token)
     .eq("user_id", userId)
     .single();
 
-  if (!session) {
+  if (error || !session) {
     throw new AuthError(
       AUTH_ERRORS.SESSION_NOT_FOUND,
       "Session not found",
@@ -265,30 +270,55 @@ const refreshToken = async ({ refreshToken }) => {
     );
   }
 
-  // 3. Check expiry
-  if (new Date(session.expires_at) < new Date()) {
-    await supabase.from("sessions").delete().eq("refresh_token", refreshToken);
+  // =========================
+  // 3. CHECK SESSION EXPIRY
+  // =========================
+  const isExpired = new Date(session.expires_at) < new Date();
+
+  if (isExpired) {
+    await supabase.from("sessions").delete().eq("id", session.id);
+
     throw new AuthError(AUTH_ERRORS.SESSION_EXPIRED, "Session expired", 401);
   }
 
-  // 🔥 4. ROTATION STEP (CRITICAL)
-  const newAccessToken = jwt.sign({ userId }, process.env.JWT_SECRET, {
-    expiresIn: "15m",
-  });
+  // =========================
+  // 4. GENERATE NEW TOKENS
+  // =========================
+  const newAccessToken = jwt.sign(
+    {
+      userId,
+      email: session.email, // optional but recommended
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "15m" },
+  );
 
   const newRefreshToken = jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET, {
     expiresIn: "7d",
   });
 
-  // 5. Replace old session
-  await supabase
+  // =========================
+  // 5. ROTATE SESSION SAFELY
+  // =========================
+  const { error: updateError } = await supabase
     .from("sessions")
     .update({
       refresh_token: newRefreshToken,
       expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     })
-    .eq("refresh_token", refreshToken);
+    .eq("id", session.id);
 
+  if (updateError) {
+    throw new AuthError(
+      "SESSION_UPDATE_FAILED",
+      "Failed to update session",
+      500,
+    );
+  }
+
+  // =========================
+  // 6. RETURN NEW TOKENS
+  // =========================
   return {
     accessToken: newAccessToken,
     refreshToken: newRefreshToken,
@@ -406,7 +436,7 @@ const verifyResetOtp = async ({ email, otp }) => {
 };
 
 const resetPassword = async ({ email, otp, newPassword }) => {
-  console.log(email, otp, newPassword)
+  console.log(email, otp, newPassword);
   if (!email || !otp || !newPassword) {
     throw new AuthError("INVALID_REQUEST", "All fields are required", 400);
   }
