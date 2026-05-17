@@ -9,6 +9,7 @@ const sessionRoutes = require("./routes/session.routes");
 const authRoutes = require("./routes/auth.routes");
 const onboardingRoutes = require("./routes/onboarding.routes");
 const profileRoutes = require("./routes/profile.routes");
+const communityRoutes = require("./routes/community.routes");
 
 const errorHandler = require("./middlewares/errorHandler");
 
@@ -26,6 +27,7 @@ app.use("/api/v1/subscriptions", subscriptionRoutes);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/onboarding", onboardingRoutes);
 app.use("/api/v1/profile", profileRoutes);
+app.use("/api/v1/community", communityRoutes);
 
 app.use(errorHandler);
 

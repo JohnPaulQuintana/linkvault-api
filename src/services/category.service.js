@@ -19,11 +19,7 @@ exports.countByUser = async (userId) => {
 exports.getAll = async ({ userId }) => {
   // 1. VALIDATION
   if (!userId) {
-    throw new AppError(
-      "User ID is required",
-      400,
-      "VALIDATION_ERROR"
-    );
+    throw new AppError("User ID is required", 400, "VALIDATION_ERROR");
   }
 
   // 2. QUERY
@@ -39,7 +35,7 @@ exports.getAll = async ({ userId }) => {
       "Failed to fetch categories",
       500,
       "FETCH_CATEGORIES_FAILED",
-      { supabaseError: error.message }
+      { supabaseError: error.message },
     );
   }
 
@@ -106,11 +102,7 @@ exports.delete = async ({ id, userId }) => {
 
   // 2. NOT FOUND
   if (!existing) {
-    throw new AppError(
-      "Category not found",
-      404,
-      "CATEGORY_NOT_FOUND"
-    );
+    throw new AppError("Category not found", 404, "CATEGORY_NOT_FOUND");
   }
 
   // 3. SYSTEM CATEGORY PROTECTION
@@ -118,7 +110,7 @@ exports.delete = async ({ id, userId }) => {
     throw new AppError(
       "System categories cannot be deleted",
       403,
-      "SYSTEM_CATEGORY_PROTECTED"
+      "SYSTEM_CATEGORY_PROTECTED",
     );
   }
 
@@ -152,11 +144,7 @@ exports.edit = async ({ id, userId, name, icon }) => {
   }
 
   if (!existing) {
-    throw new AppError(
-      "Category not found",
-      404,
-      "CATEGORY_NOT_FOUND"
-    );
+    throw new AppError("Category not found", 404, "CATEGORY_NOT_FOUND");
   }
 
   // 2. BLOCK SYSTEM CATEGORY
@@ -164,7 +152,7 @@ exports.edit = async ({ id, userId, name, icon }) => {
     throw new AppError(
       "System categories cannot be modified",
       403,
-      "SYSTEM_CATEGORY_PROTECTED"
+      "SYSTEM_CATEGORY_PROTECTED",
     );
   }
 
@@ -181,11 +169,7 @@ exports.edit = async ({ id, userId, name, icon }) => {
   }
 
   if (duplicate && duplicate.length > 0) {
-    throw new AppError(
-      "Category already exists",
-      409,
-      "DUPLICATE_CATEGORY"
-    );
+    throw new AppError("Category already exists", 409, "DUPLICATE_CATEGORY");
   }
 
   // 4. UPDATE
@@ -201,6 +185,58 @@ exports.edit = async ({ id, userId, name, icon }) => {
     .single();
 
   if (error) throw new Error(error.message);
+
+  return data;
+};
+
+exports.getPublished = async ({ categoryId }) => {
+  // 1. VALIDATION
+  if (!categoryId) {
+    throw new AppError("Category ID is required", 400, "VALIDATION_ERROR");
+  }
+
+  // 2. QUERY (ONLY by category_id)
+  const { data, error } = await supabase
+    .from("links")
+    .select("*")
+    .eq("category_id", categoryId)
+    .order("created_at", { ascending: false });
+
+  // 3. ERROR HANDLING
+  if (error) {
+    throw new AppError("Failed to fetch links", 500, "FETCH_LINKS_FAILED", {
+      supabaseError: error.message,
+    });
+  }
+
+  return data;
+};
+
+exports.updatePublishedState = async ({ categoryId, state }) => {
+  if (!categoryId) {
+    throw new AppError("Category ID is required", 400, "VALIDATION_ERROR");
+  }
+
+  if (!state || !["public", "private"].includes(state)) {
+    throw new AppError("Invalid state value", 400, "VALIDATION_ERROR");
+  }
+
+  const { data, error } = await supabase
+    .from("categories")
+    .update({
+      published: state,
+    })
+    .eq("id", categoryId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new AppError(
+      error.message || "Failed to update category",
+      500,
+      "DB_ERROR"
+    );
+  }
 
   return data;
 };

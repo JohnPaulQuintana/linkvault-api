@@ -224,3 +224,99 @@ exports.editCategory = async (req, res) => {
     });
   }
 };
+
+exports.getPublishedLinksByCategory = async (req, res) => {
+  try {
+    const { categoryId } = req.query;
+
+    console.log("[getPublishedCategories] Query:", req.query);
+
+    if (!categoryId) {
+      throw new AppError(
+        "User id is required",
+        400,
+        "VALIDATION_ERROR"
+      );
+    }
+
+    const data = await categoryService.getPublished({
+      categoryId,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Published categories fetched successfully",
+      data,
+      meta: {
+        total: data.length,
+      },
+    });
+  } catch (err) {
+    console.error("[getPublishedCategories] Error:", err);
+
+    if (err.isOperational) {
+      return res.status(err.statusCode).json({
+        success: false,
+        message: err.message,
+        code: err.code,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      code: "SERVER_ERROR",
+    });
+  }
+};
+
+exports.togglePublishedCategory = async (req, res) => {
+  try {
+    const { categoryId, state } = req.body;
+
+    console.log("[togglePublishedCategory] Body:", req.body);
+
+    if (!categoryId || !state) {
+      throw new AppError(
+        "Category id and state are required",
+        400,
+        "VALIDATION_ERROR"
+      );
+    }
+
+    if (!["public", "private"].includes(state)) {
+      throw new AppError(
+        "Invalid state value",
+        400,
+        "VALIDATION_ERROR"
+      );
+    }
+
+    const data = await categoryService.updatePublishedState({
+      categoryId,
+      state,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Category publish state updated successfully",
+      data,
+    });
+  } catch (err) {
+    console.error("[togglePublishedCategory] Error:", err);
+
+    if (err.isOperational) {
+      return res.status(err.statusCode).json({
+        success: false,
+        message: err.message,
+        code: err.code,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      code: "SERVER_ERROR",
+    });
+  }
+};
