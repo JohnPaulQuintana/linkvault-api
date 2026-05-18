@@ -5,6 +5,7 @@ const { generateAccessToken, generateRefreshToken } = require("../utils/jwt");
 const { compare } = require("../utils/hash");
 const jwt = require("jsonwebtoken");
 const { AuthError, AUTH_ERRORS } = require("../utils/authErrors");
+
 const { insertSubscription } = require("./subscription.service");
 
 const register = async ({ email, password, fullname }) => {
@@ -162,7 +163,9 @@ const resendOtp = async ({ email }) => {
   };
 };
 
-const login = async ({ email, password }) => {
+const login = async ({ email, password, meta }) => {
+  console.log("THIS IS THE LOGIN REQUEST...")
+  console.log(email, password, meta)
   const { data: user } = await supabase
     .from("users")
     .select("*")
@@ -204,7 +207,14 @@ const login = async ({ email, password }) => {
   await supabase.from("sessions").insert({
     user_id: user.id,
     refresh_token: refreshToken,
-    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    // expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    // expires_at: new Date(Date.now() + 30 * 1000), // 🔥 DEBUG: 30 seconds
+    expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    device_name: meta.deviceName,
+    ip_address: meta.ipAddress,
+    user_agent: meta.userAgent,
+    last_used_at: new Date(),
+
   });
 
   const { password: _, ...safeUser } = user;
@@ -250,16 +260,13 @@ const refreshToken = async ({ refreshToken: token }) => {
     );
   }
 
-  const userId = decoded.userId;
-
   // =========================
-  // 2. FIND SESSION
+  // 2. FIND SESSION (single source of truth)
   // =========================
   const { data: session, error } = await supabase
     .from("sessions")
     .select("*")
     .eq("refresh_token", token)
-    .eq("user_id", userId)
     .single();
 
   if (error || !session) {
@@ -269,6 +276,8 @@ const refreshToken = async ({ refreshToken: token }) => {
       401,
     );
   }
+
+  const userId = session.user_id;
 
   // =========================
   // 3. CHECK SESSION EXPIRY
@@ -282,31 +291,43 @@ const refreshToken = async ({ refreshToken: token }) => {
   }
 
   // =========================
-  // 4. GENERATE NEW TOKENS
+  // 4. GET USER
   // =========================
-  const newAccessToken = jwt.sign(
-    {
-      userId,
-      email: session.email, // optional but recommended
-    },
-    process.env.JWT_SECRET,
-    { expiresIn: "15m" },
-  );
+  const { data: user, error: userError } = await supabase
+    .from("users")
+    .select("id, email")
+    .eq("id", userId)
+    .single();
 
-  const newRefreshToken = jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET, {
-    expiresIn: "7d",
+  if (userError || !user) {
+    throw new AuthError(AUTH_ERRORS.USER_NOT_FOUND, "User not found", 404);
+  }
+
+  // =========================
+  // 5. GENERATE NEW TOKENS
+  // =========================
+  const newAccessToken = generateAccessToken({
+    id: user.id,
+    email: user.email,
+  });
+
+  const newRefreshToken = generateRefreshToken({
+    id: user.id,
   });
 
   // =========================
-  // 5. ROTATE SESSION SAFELY
+  // 6. ROTATE SESSION SAFELY (FIXED)
   // =========================
   const { error: updateError } = await supabase
     .from("sessions")
     .update({
       refresh_token: newRefreshToken,
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      // expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      //  expires_at: new Date(Date.now() + 30 * 1000), // 🔥 DEBUG: 30 seconds
+      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30days
+      last_used_at: new Date(),
     })
-    .eq("id", session.id);
+    .eq("id", session.id); // ✅ FIX: stable identifier
 
   if (updateError) {
     throw new AuthError(
@@ -317,7 +338,7 @@ const refreshToken = async ({ refreshToken: token }) => {
   }
 
   // =========================
-  // 6. RETURN NEW TOKENS
+  // 7. RETURN NEW TOKENS
   // =========================
   return {
     accessToken: newAccessToken,

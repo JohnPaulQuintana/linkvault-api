@@ -1,4 +1,5 @@
 const authService = require("../services/auth.service");
+const { getSessionMeta } = require("../utils/getSessionMeta");
 
 const register = async (req, res) => {
   try {
@@ -33,7 +34,17 @@ const resendOtp = async (req, res) => {
 const login = async (req, res) => {
   try {
     console.log("LOGIN SECRET:", process.env.JWT_SECRET);
-    const result = await authService.login(req.body);
+    // console.log(req)
+    // console.log("HEADERS:", req.headers);
+    // console.log("IP:", req.ip);
+    // console.log("UA:", req.headers["user-agent"]);
+
+    const meta = getSessionMeta(req);
+    console.log(meta);
+    const result = await authService.login({
+      ...req.body,
+      meta,
+    });
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -41,6 +52,8 @@ const login = async (req, res) => {
 };
 
 const me = async (req, res) => {
+  console.log("ME REQUEST")
+  console.log(req.user)
   try {
     const user = await authService.me(req.user.userId);
     res.json({ user });
