@@ -16,17 +16,19 @@ exports.getAllPublicCategory = async () => {
       full_name
     ),
 
-    links (
+    links!inner (
       id,
       title,
       url,
       description,
       image,
       domain,
+      safety_status,
       created_at
     )
   `)
   .eq("published", "public")
+  .eq("links.safety_status", "safe")
   .order("created_at", { ascending: false });
 
   if (error) {

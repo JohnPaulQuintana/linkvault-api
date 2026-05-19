@@ -1,9 +1,24 @@
-const scraper = require("./scraper.service");
+const scraper = require("./scrapper/scraper.service");
 const { supabase } = require("../config/supabase");
 const subscriptionService = require("./subscription.service");
 const sessionService = require("./session.service");
 
+const { checkUrlAccessible } = require("./safety/checkUrlAccessible");
+const { getDomain } = require("./scrapper/helpers/getDomain");
+
 const AppError = require("../utils/AppError");
+
+const normalizeUrl = (url) => {
+  try {
+    const u = new URL(url);
+
+    return `${u.hostname.replace(/^www\./, "")}${u.pathname}`
+      .toLowerCase()
+      .replace(/\/$/, "");
+  } catch {
+    return url;
+  }
+};
 
 exports.createLink = async ({
   url,
@@ -14,11 +29,17 @@ exports.createLink = async ({
   description,
 }) => {
   // 1. DUPLICATE CHECK (IMPORTANT)
+  const normalizedUrlText = normalizeUrl(url);
+  const domain = getDomain(url);
+  // const normalizedTitle = (title || "").trim().toLowerCase();
+
+  console.log(url, domain)
   const { data: existing } = await supabase
     .from("links")
     .select("id")
     .eq("user_id", user_id)
     .eq("url", url)
+    .eq("domain", domain)
     .maybeSingle();
 
   if (existing) {
@@ -48,18 +69,42 @@ exports.createLink = async ({
       {
         limit: plan.max_links_per_category,
         current: count,
-      }
+      },
+    );
+  }
+
+  // =========================
+  // CHECK URL ACCESSIBILITY
+  // =========================
+  const accessibility = await checkUrlAccessible(url);
+
+  if (!accessibility.accessible) {
+    const reasonMap = {
+      blocked: "The website domain could not be reached.",
+      // dns_error: "The website domain could not be reached.",
+      timeout: "The website took too long to respond.",
+      connection_refused: "The website refused the connection request.",
+      not_found: "The website or page does not exist.",
+      server_error: "The website is currently experiencing server issues.",
+      request_failed: "Unable to access the website at this time.",
+    };
+
+    throw new AppError(
+      reasonMap[accessibility.reason] || "Unable to access this website.",
+      400,
+      "LINK_UNAVAILABLE",
+      accessibility,
     );
   }
 
   // 2. SCRAPE / GENERATE PREVIEW
-  let preview = null;
+  let preview = await scraper.generateTypedContent(url, link_type);
 
-  if (link_type === "website") {
-    preview = await scraper.generateWebsiteContent(url);
-  } else {
-    preview = await scraper.generateTypedContent(url, link_type);
-  }
+  console.log(preview);
+  // if (link_type === "website") {
+  // } else {
+  //   preview = await scraper.generateTypedContent(url, link_type);
+  // }
 
   // 3. SAFE MERGE (user input wins)
   const payload = {
@@ -72,6 +117,8 @@ exports.createLink = async ({
     image: preview?.image || null,
     favicon: preview?.favicon || null,
     domain: preview?.domain || null,
+    platform: preview.type || null,
+    safety_status: preview.safety.status,
   };
 
   // 4. INSERT
@@ -113,9 +160,7 @@ exports.getLinks = async ({ userId, categoryId }) => {
     throw new AppError(error.message, 500, "DB_ERROR");
   }
 
-  const sessionMap = new Map(
-    (sessions || []).map((s) => [s.link_id, s])
-  );
+  const sessionMap = new Map((sessions || []).map((s) => [s.link_id, s]));
 
   return links.map((link) => {
     const session = sessionMap.get(link.id);
