@@ -122,7 +122,7 @@ exports.generateTypedContent = async (
     case "mega":
     case "mediafire":
     case "onedrive":
-      return generateStorageMeta(url, type);
+      return generateWebsiteContent(url, type);
 
     // =====================
     // MEDIA

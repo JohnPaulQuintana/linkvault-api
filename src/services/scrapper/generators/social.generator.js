@@ -18,7 +18,7 @@ const { detectSafety } = require("../../safety/safety.service");
 
 exports.generateSocialMeta = async (url, type) => {
   const domain = getDomain(url);
-const platform = await getPlatform(type, url);
+  const platform = await getPlatform(type, url);
   const realImage = await getPreviewImage(url);
   const realDescription = await getPreviewDescription(url);
 
@@ -30,7 +30,6 @@ const platform = await getPlatform(type, url);
     title: platform.name,
     description: realDescription || "",
   });
-
 
   return {
     url,
