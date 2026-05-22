@@ -10,6 +10,7 @@ const authRoutes = require("./routes/auth.routes");
 const onboardingRoutes = require("./routes/onboarding.routes");
 const profileRoutes = require("./routes/profile.routes");
 const communityRoutes = require("./routes/community.routes");
+const feedbackRoutes = require("./routes/feedback.routes");
 
 const errorHandler = require("./middlewares/errorHandler");
 
@@ -28,6 +29,7 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/onboarding", onboardingRoutes);
 app.use("/api/v1/profile", profileRoutes);
 app.use("/api/v1/community", communityRoutes);
+app.use("/api/v1/feedback", feedbackRoutes);
 
 app.use(errorHandler);
 
