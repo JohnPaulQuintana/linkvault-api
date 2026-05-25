@@ -22,13 +22,13 @@ const router = express.Router();
 // AUTH
 // ======================
 
-router.post("/register", register);
-router.post("/verify", verifyOtp);
-router.post("/resend-otp", resendOtp);
-router.post("/login", login);
+router.post("/register", register);// migrated
+router.post("/verify", verifyOtp);// migrated
+router.post("/resend-otp", resendOtp);// migrated
+router.post("/login", login);// migrated
 
-router.post("/refresh", refresh);
-router.post("/logout", logout);
+router.post("/refresh", refresh); // migrated
+router.post("/logout", logout); // migrate
 
 // ======================
 // FORGOT PASSWORD

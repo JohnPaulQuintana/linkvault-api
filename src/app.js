@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 
 const linkRoutes = require("./routes/link.routes");
+const scrapperRoutes = require("./routes/scrapper.routes");
 const categoryRoutes = require("./routes/category.routes");
 const subscriptionRoutes = require("./routes/subscription.routes");
 const sessionRoutes = require("./routes/session.routes");
@@ -23,9 +24,10 @@ app.use(express.json());
 
 app.use("/api/v1/categories", categoryRoutes)
 app.use("/api/v1/links", linkRoutes);
+app.use("/api/v1/scrapper", scrapperRoutes);
 app.use("/api/v1/session", sessionRoutes);
 app.use("/api/v1/subscriptions", subscriptionRoutes);
-app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/auth", authRoutes); //migrated
 app.use("/api/v1/onboarding", onboardingRoutes);
 app.use("/api/v1/profile", profileRoutes);
 app.use("/api/v1/community", communityRoutes);
