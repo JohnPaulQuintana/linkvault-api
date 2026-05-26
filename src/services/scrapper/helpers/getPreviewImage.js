@@ -2,6 +2,7 @@ const cheerio = require("cheerio");
 const axios = require("axios");
 const { captureScreenshot } = require("./playwright/captureScreenshot");
 const { runLimited } = require("./playwright/queue");
+const {cloudinary} = require("../../../config/cloudinary");
 
 const blockedDomains = [];
 
@@ -58,7 +59,14 @@ exports.getPreviewImage = async (url, fallbackImage = null) => {
     const screenshot = await runLimited(() => captureScreenshot(url));
 
     if (screenshot) {
-      return `data:image/jpeg;base64,${screenshot.toString("base64")}`;
+      const uploaded = await cloudinary.uploader.upload(
+        `data:image/jpeg;base64,${screenshot.toString("base64")}`,
+        {
+          folder: "navilink-previews",
+        },
+      );
+
+      return uploaded.secure_url;
     }
 
     return fallbackImage;
