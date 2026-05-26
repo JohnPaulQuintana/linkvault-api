@@ -2,7 +2,7 @@ const cheerio = require("cheerio");
 const axios = require("axios");
 const { captureScreenshot } = require("./playwright/captureScreenshot");
 const { runLimited } = require("./playwright/queue");
-const {cloudinary} = require("../../../config/cloudinary");
+const cloudinary = require("../../../config/cloudinary");
 
 const blockedDomains = [];
 
